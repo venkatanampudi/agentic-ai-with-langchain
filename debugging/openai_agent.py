@@ -1,94 +1,148 @@
-# ### Debugging LangGraph Applications With LangSmith
-
+# ### Debugging chatbot Applications With LangGraph Studio 
 # from typing import Annotated
 # from typing_extensions import TypedDict
 # from langchain_openai import ChatOpenAI
-# from langgraph.graph import START, END 
+# from langgraph.graph import START, END
 # from langgraph.graph.state import StateGraph
 # from langgraph.graph.message import add_messages
-# from langgraph.prebuilt import ToolNode
-# from langchain_core.tools import tool
 # from langchain_core.messages import BaseMessage
+# from langchain.tools import tool
+# from langgraph.prebuilt import ToolNode
 # import os
-# from dotenv import load_dotenv 
+# from dotenv import load_dotenv
+
 # load_dotenv()
-# os.environ["OPENAI_API_KEY"]=os.getenv("OPENAI_API_KEY")
-# os.environ["LANGSMITH_API_KEY"]=os.getenv("LANGSMITH_API_KEY")
 
-# # STEP 1:
-# # Define state class with "messages" variable using annotated with basemessage and reducer.
-# # Reducer "add_messages" will keep appending the messages
-# # This class will keep adding messages to the list of messages as user keep querying the models (like with chatgpt)
+# os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+# os.environ["LANGSMITH_API_KEY"] = os.getenv("LANGSMITH_API_KEY")
+
+# # # STEP 1:
+# # # Define state class with "messages" variable using annotated with basemessage and reducer.
+# # # Reducer "add_messages" will keep appending the messages
+# # # This class will keep adding messages to the list of messages as user keep querying the models (like with chatgpt)
 # class State(TypedDict):
-#     messages:Annotated[list[BaseMessage],add_messages]
+#     messages: Annotated[list[BaseMessage], add_messages]
 
-# # STEP 2: Initialize the model with temp=0. ChatOpenAI use "gpt-4o" model by default
-# model=ChatOpenAI(temperature=0)
+# # # STEP 2: Initialize the model with temp=0. ChatOpenAI use "gpt-4o" model by default
+# model = ChatOpenAI(temperature=0)
 
-# # STEP 3: Create a function for a workflow using StateGraph. graph_workflow is just name of the graph
+# # # STEP 3: Create a function for a workflow using StateGraph. graph_workflow is just name of the graph
 # def make_default_graph():
-#     graph_workflow=StateGraph(State) 
+#     graph_workflow = StateGraph(State)
 
-# # define the node functionality
 #     def call_model(state):
-#         return {"messages":[model.invoke(state['messages'])]}
+#         return {"messages": [model.invoke(state["messages"])]}
 
-      
-# # now, adding the nodes and edges to the workflow 
+# # Add the nodes and edges to the workflow 
 #     graph_workflow.add_node("agent", call_model)
-#     graph_workflow.add_edge(START,"agent")
+
+#     graph_workflow.add_edge(START, "agent")
 #     graph_workflow.add_edge("agent", END)
-    
- 
-# # next, create agent using the above graph workflow and compile.agent is nothing but a graph
-#     agent=graph_workflow.compile()
+# # create agent using the above graph workflow and compile.
+# # agent is nothing but a graph
+#     agent = graph_workflow.compile()
+#     return agent
+
+
+# # another function for tool call
+# def make_alternative_graph():
+#     """Make a tool-calling agent"""
+
+#     @tool
+#     def add(a: float, b: float):
+#         """Adds two numbers."""
+#         return a + b
+
+#     tool_node = ToolNode([add])
+#     model_with_tools = model.bind_tools([add])
+#     def call_model(state):
+#         return {"messages": [model_with_tools.invoke(state["messages"])]}
+
+#     def should_continue(state: State):
+#         if state["messages"][-1].tool_calls:
+#             return "tools"
+#         else:
+#             return END
+
+#     graph_workflow = StateGraph(State)
+
+#     graph_workflow.add_node("agent", call_model)
+#     graph_workflow.add_node("tools", tool_node)
+#     graph_workflow.add_edge("tools", "agent")
+#     graph_workflow.add_edge(START, "agent")
+#     graph_workflow.add_conditional_edges("agent", should_continue)
+
+#     agent = graph_workflow.compile()
 #     return agent
 
 # # calling this agent 
-# agent=make_default_graph()
+# agent = make_alternative_graph()
 
-### Debugging chatbot Applications With LangGraph Studio 
 from typing import Annotated
 from typing_extensions import TypedDict
 from langchain_openai import ChatOpenAI
-from langgraph.graph import START, END
+from langgraph.graph import END, START
 from langgraph.graph.state import StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
+from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-os.environ["LANGSMITH_API_KEY"] = os.getenv("LANGSMITH_API_KEY")
+os.environ["OPENAI_API_KEY"]=os.getenv("OPENAI_API_KEY")
 
-# # STEP 1:
-# # Define state class with "messages" variable using annotated with basemessage and reducer.
-# # Reducer "add_messages" will keep appending the messages
-# # This class will keep adding messages to the list of messages as user keep querying the models (like with chatgpt)
+os.environ["LANGSMITH_API_KEY"]=os.getenv("LANGCHAIN_API_KEY")
+
+
 class State(TypedDict):
-    messages: Annotated[list[BaseMessage], add_messages]
+    messages:Annotated[list[BaseMessage],add_messages]
 
-# # STEP 2: Initialize the model with temp=0. ChatOpenAI use "gpt-4o" model by default
-model = ChatOpenAI(temperature=0)
+model=ChatOpenAI(temperature=0)
 
-# # STEP 3: Create a function for a workflow using StateGraph. graph_workflow is just name of the graph
 def make_default_graph():
-    graph_workflow = StateGraph(State)
+    graph_workflow=StateGraph(State)
 
     def call_model(state):
-        return {"messages": [model.invoke(state["messages"])]}
-
-# Add the nodes and edges to the workflow 
+        return {"messages":[model.invoke(state['messages'])]}
+    
     graph_workflow.add_node("agent", call_model)
-
-    graph_workflow.add_edge(START, "agent")
     graph_workflow.add_edge("agent", END)
-# create agent using the above graph workflow and compile.
-# agent is nothing but a graph
+    graph_workflow.add_edge(START, "agent")
+
+    agent=graph_workflow.compile()
+    return agent
+
+def make_alternative_graph():
+    """Make a tool-calling agent"""
+
+    @tool
+    def add(a: float, b: float):
+        """Adds two numbers."""
+        return a + b
+
+    tool_node = ToolNode([add])
+    model_with_tools = model.bind_tools([add])
+    def call_model(state):
+        return {"messages": [model_with_tools.invoke(state["messages"])]}
+
+    def should_continue(state: State):
+        if state["messages"][-1].tool_calls:
+            return "tools"
+        else:
+            return END
+
+    graph_workflow = StateGraph(State)
+
+    graph_workflow.add_node("agent", call_model)
+    graph_workflow.add_node("tools", tool_node)
+    graph_workflow.add_edge("tools", "agent")
+    graph_workflow.add_edge(START, "agent")
+    graph_workflow.add_conditional_edges("agent", should_continue)
+
     agent = graph_workflow.compile()
     return agent
 
-# calling this agent 
-agent = make_default_graph()
+agent=make_alternative_graph()
